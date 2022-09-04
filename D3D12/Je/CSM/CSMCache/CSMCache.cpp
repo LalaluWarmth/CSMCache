@@ -169,7 +169,7 @@ private:
         XMFLOAT3(-0.57735f, -0.57735f, 0.57735f),
         XMFLOAT3(0.0f, -0.707f, -0.707f)
     };
-    XMFLOAT3 mRotatedLightDirections[3];
+    XMFLOAT3 mRotatedLightDirections[3] = { mBaseLightDirections[0], mBaseLightDirections[1], mBaseLightDirections[2]};
 
     POINT mLastMousePos;
 
@@ -317,6 +317,8 @@ void ShadowMapApp::Update(const GameTimer& gt)
     //变更光源方向，从而影响阴影
     mLightRotationAngle += 0.1f*gt.DeltaTime();
 
+    /*
+    CSM cache don't allow light to rotate
     XMMATRIX R = XMMatrixRotationY(mLightRotationAngle);
     for(int i = 0; i < 3; ++i)
     {
@@ -324,6 +326,7 @@ void ShadowMapApp::Update(const GameTimer& gt)
         lightDir = XMVector3TransformNormal(lightDir, R);
         XMStoreFloat3(&mRotatedLightDirections[i], lightDir);
     }
+    */
 
 	AnimateMaterials(gt);
 	UpdateObjectCBs(gt);
