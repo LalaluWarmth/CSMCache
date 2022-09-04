@@ -59,7 +59,8 @@ struct RenderItem
 
 enum class RenderLayer : int
 {
-	Opaque = 0,
+	Opaque = 0, //static objects for now
+    Dynamic,    //dynamic objects
     Debug,
 	Sky,
 	Count
@@ -93,6 +94,9 @@ private:
 #pragma region CSM
     void UpdateShadowTransform(const GameTimer& gt);
     void UpdateShadowPassCB(const GameTimer& gt, int i = 0);
+#pragma endregion
+#pragma region CSMCache
+    void AnimateDynamicObjects(const GameTimer& gt);
 #pragma endregion
 
 	void LoadTextures();
@@ -175,6 +179,9 @@ private:
 
 #pragma region CSM
     BoundingFrustum mCamFrustum;
+#pragma endregion
+#pragma region CSMCache
+    bool mCamMoved = false; //to identify whether camera is moved this frame. if moved, we need to recaculate the shadow maps
 #pragma endregion
 };
 
@@ -317,6 +324,7 @@ void ShadowMapApp::Update(const GameTimer& gt)
     //变更光源方向，从而影响阴影
     mLightRotationAngle += 0.1f*gt.DeltaTime();
 
+#pragma region CSMCache
     /*
     CSM cache don't allow light to rotate
     XMMATRIX R = XMMatrixRotationY(mLightRotationAngle);
@@ -327,6 +335,8 @@ void ShadowMapApp::Update(const GameTimer& gt)
         XMStoreFloat3(&mRotatedLightDirections[i], lightDir);
     }
     */
+    AnimateDynamicObjects(gt);
+#pragma endregion
 
 	AnimateMaterials(gt);
 	UpdateObjectCBs(gt);
@@ -401,6 +411,7 @@ void ShadowMapApp::Draw(const GameTimer& gt)
 
     mCommandList->SetPipelineState(mPSOs["opaque"].Get());
     DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
+    DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Dynamic]);
 
     //ch20, 绘制用于显示阴影所用的深度/模板缓冲区的贴图
     mCommandList->SetPipelineState(mPSOs["debug"].Get());
@@ -674,6 +685,19 @@ void ShadowMapApp::UpdateShadowPassCB(const GameTimer& gt, int i)
 
     auto currPassCB = mCurrFrameResource->PassCB.get();
     currPassCB->CopyData(1 + i, mShadowPassCB);
+}
+
+void ShadowMapApp::AnimateDynamicObjects(const GameTimer& gt)
+{
+    auto tt = gt.TotalTime();
+    auto scale = (int)tt % 2 + 0.5f;
+    auto offsetX = (int)tt % 20 - 10 + tt - floorf(tt);
+    //just a simple dynamic. change rotate and rotation by ticks
+    for (auto& item : mRitemLayer[(int)RenderLayer::Dynamic]) 
+    {
+        XMStoreFloat4x4(&item->World, XMMatrixScaling(scale + MathHelper::RandF(), scale + MathHelper::RandF(), scale + MathHelper::RandF()) * XMMatrixTranslation(offsetX, 2.0f, 0.0f));
+        item->NumFramesDirty = gNumFrameResources;
+    }
 }
 
 void ShadowMapApp::LoadTextures()
@@ -1382,7 +1406,11 @@ void ShadowMapApp::BuildRenderItems()
     skullRitem->Bounds = skullRitem->Geo->DrawArgs["skull"].Bounds;
 #pragma endregion
 
-    mRitemLayer[(int)RenderLayer::Opaque].push_back(skullRitem.get());
+#pragma region CSMCache
+    //we change the skull to be a dynamic object
+    //mRitemLayer[(int)RenderLayer::Opaque].push_back(skullRitem.get());
+    mRitemLayer[(int)RenderLayer::Dynamic].push_back(skullRitem.get());
+#pragma endregion
     mAllRitems.push_back(std::move(skullRitem));
 
     auto gridRitem = std::make_unique<RenderItem>();
