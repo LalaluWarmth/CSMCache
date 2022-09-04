@@ -350,10 +350,6 @@ void ShadowMapApp::Update(const GameTimer& gt)
 	UpdateMainPassCB(gt);
     //UpdateShadowPassCB(gt);
 #pragma endregion
-
-#pragma region CSMCache
-    mCamMoved = false;
-#pragma endregion
 }
 
 void ShadowMapApp::Draw(const GameTimer& gt)
@@ -449,6 +445,11 @@ void ShadowMapApp::Draw(const GameTimer& gt)
     // Because we are on the GPU timeline, the new fence point won't be 
     // set until the GPU finishes processing all the commands prior to this Signal().
     mCommandQueue->Signal(mFence.Get(), mCurrentFence);
+
+
+#pragma region CSMCache
+	mCamMoved = false;
+#pragma endregion
 }
 
 void ShadowMapApp::OnMouseDown(WPARAM btnState, int x, int y)
@@ -486,20 +487,31 @@ void ShadowMapApp::OnKeyboardInput(const GameTimer& gt)
 {
 	const float dt = gt.DeltaTime();
 
-	if(GetAsyncKeyState('W') & 0x8000)
+    if (GetAsyncKeyState('W') & 0x8000) 
+    {
 		mCamera.Walk(10.0f*dt);
+		mCamMoved = true;
+    }
 
-	if(GetAsyncKeyState('S') & 0x8000)
+    if (GetAsyncKeyState('S') & 0x8000)
+    {
 		mCamera.Walk(-10.0f*dt);
+        mCamMoved = true;
+    }
 
-	if(GetAsyncKeyState('A') & 0x8000)
+    if (GetAsyncKeyState('A') & 0x8000)
+    {
 		mCamera.Strafe(-10.0f*dt);
+        mCamMoved = true;
+    }
 
-	if(GetAsyncKeyState('D') & 0x8000)
+    if (GetAsyncKeyState('D') & 0x8000)
+    {
 		mCamera.Strafe(10.0f*dt);
+        mCamMoved = true;
+    }
 
 	mCamera.UpdateViewMatrix();
-    mCamMoved = true;
 }
  
 void ShadowMapApp::AnimateMaterials(const GameTimer& gt)
@@ -1560,6 +1572,12 @@ void ShadowMapApp::DrawSceneToShadowMap()
 	UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
 	//D3D12_GPU_VIRTUAL_ADDRESS passCBAddress = passCB->GetGPUVirtualAddress() + 1 * passCBByteSize;
 
+#pragma region CSMCache
+#ifdef _DEBUG
+    std::string logs;
+#endif
+#pragma endregion
+
     //我们现在需要针对不同距离的物体创建不同的ShadowMap
     //首先使用culling. 按照物体进行区分!
     for (int i = 0, len = mShadowMap->CSMlayers(), zDiff = 120.0f / len; i < len; ++i)
@@ -1610,6 +1628,10 @@ void ShadowMapApp::DrawSceneToShadowMap()
             }
             DrawRenderItems(mCommandList.Get(), renderItems);
 
+#ifdef _DEBUG
+            logs = std::string("camera moved, regenerate shadow map \n");
+#endif
+
             mShadowMap->BackupShadowMaps(mCommandList, i);
         }
         else
@@ -1639,6 +1661,11 @@ void ShadowMapApp::DrawSceneToShadowMap()
 		DrawRenderItems(mCommandList.Get(), renderItems);
 #pragma endregion
 
+#pragma region CSMCache
+#ifdef _DEBUG
+		OutputDebugStringA(logs.c_str());
+#endif
+#pragma endregion
 
 		// Change back to GENERIC_READ so we can read the texture in a shader.
 		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mShadowMap->Resource(i),
