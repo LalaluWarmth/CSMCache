@@ -297,6 +297,9 @@ void ShadowMapApp::OnResize()
 #pragma region CSM
     BoundingFrustum::CreateFromMatrix(mCamFrustum, mCamera.GetProj());
 #pragma endregion
+
+#pragma region CSMCache
+#pragma endregion
 }
 
 void ShadowMapApp::Update(const GameTimer& gt)
@@ -346,6 +349,10 @@ void ShadowMapApp::Update(const GameTimer& gt)
     //UpdateShadowTransform(gt);
 	UpdateMainPassCB(gt);
     //UpdateShadowPassCB(gt);
+#pragma endregion
+
+#pragma region CSMCache
+    mCamMoved = false;
 #pragma endregion
 }
 
@@ -467,6 +474,8 @@ void ShadowMapApp::OnMouseMove(WPARAM btnState, int x, int y)
 
 		mCamera.Pitch(dy);
 		mCamera.RotateY(dx);
+
+        mCamMoved = true;
     }
 
     mLastMousePos.x = x;
@@ -490,6 +499,7 @@ void ShadowMapApp::OnKeyboardInput(const GameTimer& gt)
 		mCamera.Strafe(10.0f*dt);
 
 	mCamera.UpdateViewMatrix();
+    mCamMoved = true;
 }
  
 void ShadowMapApp::AnimateMaterials(const GameTimer& gt)
@@ -1576,11 +1586,43 @@ void ShadowMapApp::DrawSceneToShadowMap()
 		// Note the active PSO also must specify a render target count of 0.
 		mCommandList->OMSetRenderTargets(0, nullptr, false, &mShadowMap->Dsv(i));
 
-        //找到那些在这个视锥体中的物体
-        std::vector<RenderItem*> renderItems;
-        for (auto& e : mRitemLayer[(int)RenderLayer::Opaque])
+#pragma region CSMCache
+        //if the camera is moved, then we recaculate the shadow maps of static object. otherwise, we simply copy it from the last record
+        if (mCamMoved)
         {
-            if (!e->CastShadows) continue;
+            //找到那些在这个视锥体中的物体
+            std::vector<RenderItem*> renderItems;
+            for (auto& e : mRitemLayer[(int)RenderLayer::Opaque])
+            {
+                if (!e->CastShadows) continue;
+                XMMATRIX world = XMLoadFloat4x4(&e->World);
+                XMMATRIX texTransform = XMLoadFloat4x4(&e->TexTransform);
+
+                XMMATRIX invWorld = XMMatrixInverse(&XMMatrixDeterminant(world), world);
+                XMMATRIX viewToLocal = XMMatrixMultiply(invView, invWorld); //将视锥体变换到局部空间的矩阵
+                BoundingFrustum localSpaceFrustum;
+                mCamFrustum.Transform(localSpaceFrustum, viewToLocal);  //将视锥体变换到物体的局部空间, 从而检测物体是否可见
+
+                if (localSpaceFrustum.Contains(e->Bounds) != DirectX::DISJOINT)
+                {
+                    renderItems.push_back(e);
+                }
+            }
+            DrawRenderItems(mCommandList.Get(), renderItems);
+
+            mShadowMap->BackupShadowMaps(mCommandList, i);
+        }
+        else
+        {
+            //simply copy the resources from previous
+            mShadowMap->ReuseShadowMaps(mCommandList, i);
+        }
+
+        //render the dynamic objects
+		std::vector<RenderItem*> renderItems;
+		for (auto& e : mRitemLayer[(int)RenderLayer::Dynamic])
+		{
+			if (!e->CastShadows) continue;
 			XMMATRIX world = XMLoadFloat4x4(&e->World);
 			XMMATRIX texTransform = XMLoadFloat4x4(&e->TexTransform);
 
@@ -1591,11 +1633,12 @@ void ShadowMapApp::DrawSceneToShadowMap()
 
 			if (localSpaceFrustum.Contains(e->Bounds) != DirectX::DISJOINT)
 			{
-                renderItems.push_back(e);
+				renderItems.push_back(e);
 			}
 		}
+		DrawRenderItems(mCommandList.Get(), renderItems);
+#pragma endregion
 
-        DrawRenderItems(mCommandList.Get(), renderItems);
 
 		// Change back to GENERIC_READ so we can read the texture in a shader.
 		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mShadowMap->Resource(i),

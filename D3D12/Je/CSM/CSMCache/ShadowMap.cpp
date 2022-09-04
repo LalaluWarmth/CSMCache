@@ -60,10 +60,46 @@ int ShadowMap::CSMlayers() const
     return csmLayers;
 }
 
+void ShadowMap::ReuseShadowMaps(Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> commandList, int i)
+{
+	//change the state of shadow map and backup shadow map, which is copy_src and copy_dst respectively
+	D3D12_RESOURCE_BARRIER barriers[] = {
+		CD3DX12_RESOURCE_BARRIER::Transition(mBackupShadowMaps[i].Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_SOURCE),
+		CD3DX12_RESOURCE_BARRIER::Transition(mShadowMaps[i].Get(), D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_COPY_DEST)
+	};
+	commandList->ResourceBarrier(2, barriers);
+
+	commandList->CopyResource(mShadowMaps[i].Get(), mBackupShadowMaps[i].Get());
+
+	D3D12_RESOURCE_BARRIER switchBackBarriers[] = {
+		CD3DX12_RESOURCE_BARRIER::Transition(mBackupShadowMaps[i].Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_COMMON),
+		CD3DX12_RESOURCE_BARRIER::Transition(mShadowMaps[i].Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_GENERIC_READ)
+	};
+	commandList->ResourceBarrier(2, switchBackBarriers);
+}
+
+void ShadowMap::BackupShadowMaps(Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> commandList, int i)
+{
+	//change the state of shadow map and backup shadow map, which is copy_src and copy_dst respectively
+	D3D12_RESOURCE_BARRIER barriers[] = {
+		CD3DX12_RESOURCE_BARRIER::Transition(mBackupShadowMaps[i].Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST),
+		CD3DX12_RESOURCE_BARRIER::Transition(mShadowMaps[i].Get(), D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_COPY_SOURCE)
+	};
+	commandList->ResourceBarrier(2, barriers);
+
+	commandList->CopyResource(mBackupShadowMaps[i].Get(), mShadowMaps[i].Get());
+
+	D3D12_RESOURCE_BARRIER switchBackBarriers[] = {
+		CD3DX12_RESOURCE_BARRIER::Transition(mBackupShadowMaps[i].Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_COMMON),
+		CD3DX12_RESOURCE_BARRIER::Transition(mShadowMaps[i].Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_GENERIC_READ)
+	};
+	commandList->ResourceBarrier(2, switchBackBarriers);
+}
+
 void ShadowMap::BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv, CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv, CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDsv, UINT cbvSrvUavDescriptorSize, UINT dsvDescriptorSize)
 {
-    mhCpuSrv = hCpuSrv; 
-    mhGpuSrv = hGpuSrv;
+	mhCpuSrv = hCpuSrv;
+	mhGpuSrv = hGpuSrv;
     mhCpuDsv = hCpuDsv;
 
     mCbvSrvUavDescriptorSize = cbvSrvUavDescriptorSize;
@@ -153,5 +189,20 @@ void ShadowMap::BuildResource()
 			&optClear,
 			IID_PPV_ARGS(&mShadowMaps[i])));
 	}
+#pragma endregion
+
+#pragma region CSMCache
+    //we set the back shadow maps
+    mBackupShadowMaps.resize(csmLayers);
+    for (int i = 0; i < csmLayers; ++i)
+    {
+        ThrowIfFailed(md3dDevice->CreateCommittedResource(
+            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+            D3D12_HEAP_FLAG_NONE,
+            &texDesc,
+            D3D12_RESOURCE_STATE_COMMON,
+            &optClear,
+            IID_PPV_ARGS(&mBackupShadowMaps[i])));
+    }
 #pragma endregion
 }

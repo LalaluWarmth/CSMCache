@@ -12,13 +12,20 @@ public:
 
 	UINT Width() const;
 	UINT Height() const;
-	ID3D12Resource* Resource(int i);
-	CD3DX12_GPU_DESCRIPTOR_HANDLE Srv(int i) const;	//获取指定csm层级的srv
-	CD3DX12_CPU_DESCRIPTOR_HANDLE Dsv(int i) const;	//获取指定csm层级的dsv
 	D3D12_VIEWPORT Viewport() const;
 	D3D12_RECT ScissorRect() const;
 
+#pragma region CSM
 	int CSMlayers() const;
+	ID3D12Resource* Resource(int i);
+	CD3DX12_GPU_DESCRIPTOR_HANDLE Srv(int i) const;	//获取指定csm层级的srv
+	CD3DX12_CPU_DESCRIPTOR_HANDLE Dsv(int i) const;	//获取指定csm层级的dsv
+#pragma endregion
+
+#pragma region CSMCache
+	void ReuseShadowMaps(Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> commandList, int i);	//reuse the resource bound to dsv in index for static objects that recorded in last frame
+	void BackupShadowMaps(Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> commandList, int i);	//backup the resource bound to dsv in index for static objects
+#pragma endregion
 
 	void BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv,
 		CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv, CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDsv, 
@@ -44,8 +51,12 @@ private:
 
 	UINT mCbvSrvUavDescriptorSize;
 	UINT mDsvDescriptorSize;
+	std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> mShadowMaps;
 #pragma endregion
 
-	std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> mShadowMaps;
+#pragma region CSMCache
+	//reuseable shadow maps. we resue the shadow maps for the static objects if the camera doesn't move
+	std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> mBackupShadowMaps;
+#pragma endregion
 };
 
