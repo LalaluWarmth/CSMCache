@@ -65,7 +65,7 @@ void ShadowMap::ReuseShadowMaps(Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList
 	//change the state of shadow map and backup shadow map, which is copy_src and copy_dst respectively
 	D3D12_RESOURCE_BARRIER barriers[] = {
 		CD3DX12_RESOURCE_BARRIER::Transition(mBackupShadowMaps[i].Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_SOURCE),
-		CD3DX12_RESOURCE_BARRIER::Transition(mShadowMaps[i].Get(), D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_COPY_DEST)
+		CD3DX12_RESOURCE_BARRIER::Transition(mShadowMaps[i].Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_COPY_DEST)
 	};
 	commandList->ResourceBarrier(2, barriers);
 
@@ -73,7 +73,7 @@ void ShadowMap::ReuseShadowMaps(Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList
 
 	D3D12_RESOURCE_BARRIER switchBackBarriers[] = {
 		CD3DX12_RESOURCE_BARRIER::Transition(mBackupShadowMaps[i].Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_COMMON),
-		CD3DX12_RESOURCE_BARRIER::Transition(mShadowMaps[i].Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_GENERIC_READ)
+		CD3DX12_RESOURCE_BARRIER::Transition(mShadowMaps[i].Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_DEPTH_WRITE)
 	};
 	commandList->ResourceBarrier(2, switchBackBarriers);
 }
@@ -83,7 +83,7 @@ void ShadowMap::BackupShadowMaps(Microsoft::WRL::ComPtr<ID3D12GraphicsCommandLis
 	//change the state of shadow map and backup shadow map, which is copy_src and copy_dst respectively
 	D3D12_RESOURCE_BARRIER barriers[] = {
 		CD3DX12_RESOURCE_BARRIER::Transition(mBackupShadowMaps[i].Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST),
-		CD3DX12_RESOURCE_BARRIER::Transition(mShadowMaps[i].Get(), D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_COPY_SOURCE)
+		CD3DX12_RESOURCE_BARRIER::Transition(mShadowMaps[i].Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_COPY_SOURCE)
 	};
 	commandList->ResourceBarrier(2, barriers);
 
@@ -91,7 +91,7 @@ void ShadowMap::BackupShadowMaps(Microsoft::WRL::ComPtr<ID3D12GraphicsCommandLis
 
 	D3D12_RESOURCE_BARRIER switchBackBarriers[] = {
 		CD3DX12_RESOURCE_BARRIER::Transition(mBackupShadowMaps[i].Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_COMMON),
-		CD3DX12_RESOURCE_BARRIER::Transition(mShadowMaps[i].Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_GENERIC_READ)
+		CD3DX12_RESOURCE_BARRIER::Transition(mShadowMaps[i].Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE)
 	};
 	commandList->ResourceBarrier(2, switchBackBarriers);
 }
